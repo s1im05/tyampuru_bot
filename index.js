@@ -54,10 +54,10 @@ const getPost = (postId) => {
     });
 };
 
-const doPoll = async (data, msg) => {
+const doPoll = async (data, msg, from) => {
 
     const postKey = `post_${data.postId}`;
-    const userVoteKey = `${postKey}_user_${msg.chat.id}`;
+    const userVoteKey = `${postKey}_user_${from.id}`;
 
     let postVoteData = await keyv.get(postKey);
     if (!postVoteData) {
@@ -116,11 +116,12 @@ const sendNextPost = () => {
 bot.on('callback_query', function onCallbackQuery(callbackQuery) {
     const data = JSON.parse(callbackQuery.data);
     const msg = callbackQuery.message;
+    const from = callbackQuery.from;
 
     if (data.action === ACTION_POLL) {
         (async () => {
 
-            const pollData = await doPoll(data, msg);
+            const pollData = await doPoll(data, msg, from);
 
             try {
                 const reply = msg.reply_markup.inline_keyboard;
