@@ -10,6 +10,9 @@
   "author": "Vadim Suleymanov",
   "license": "ISC",
   "dependencies": {
-    "node-telegram-bot-api": "^0.30.0"
+    "forever-monitor": "^1.7.1",
+    "keyv": "^3.1.0",
+    "node-telegram-bot-api": "^0.30.0",
+    "request": "^2.88.0"
   }
 }
