@@ -6,9 +6,10 @@ const last_id_file = 'last_id';
 const chat_id = '@tyampuru';
 const api_path = 'https://tyampuru.ru/api/post/';
 const link_path = 'https://tyampuru.ru/post/';
-const delay_min = 5;
 
 const TOKEN = process.env.TELEGRAM_TOKEN || '';
+const POST_DELAY = process.env.POST_DELAY || 60;
+
 const TelegramBot = require('node-telegram-bot-api');
 const request = require('request');
 const fs = require('fs');
@@ -17,10 +18,8 @@ const options = {
 };
 const bot = new TelegramBot(TOKEN, options);
 
-let i = 0;
-
 const getPost = (postId) => {
-    const promise = new Promise((resolve, reject) => {
+    return new Promise((resolve, reject) => {
         const url = `${api_path}${postId}`;
 
         request.get(url, (err, res, body) => {
@@ -45,8 +44,6 @@ const getPost = (postId) => {
             }
         });
     });
-
-    return promise;
 };
 
 const sendNextPost = () => {
@@ -83,32 +80,32 @@ bot.on('callback_query', function onCallbackQuery(callbackQuery) {
     const data = JSON.parse(callbackQuery.data);
     const msg = callbackQuery.message;
 
-    switch (data.action) {
-        case 'poll':
-            (async () => {
-                try {
-                    const reply = msg.reply_markup.inline_keyboard;
-                    const index = data.vote === 'up' ? 0 : 1;
-                    const vote = +reply[0][index].text.substr(2);
-                    reply[0][index].text = reply[0][index].text.substr(0, 2) + (vote+1);
+    if (data.action === 'poll') {
+        (async () => {
+            try {
+                const reply = msg.reply_markup.inline_keyboard;
+                const index = data.vote === 'up' ? 0 : 1;
+                const vote = +reply[0][index].text.substr(2);
+                reply[0][index].text = reply[0][index].text.substr(0, 2) + (vote+1);
 
-                    await bot.editMessageReplyMarkup({
-                        inline_keyboard: [...reply]
-                    }, {
-                        chat_id: chat_id,
-                        message_id: msg.message_id
-                    });
-                } catch (e) {
-                    // console.error(e);
-                }
-            })();
-            break;
-        default:
+                await bot.editMessageReplyMarkup({
+                    inline_keyboard: [...reply]
+                }, {
+                    chat_id: chat_id,
+                    message_id: msg.message_id
+                });
+            } catch (e) {
+                // console.error(e);
+            }
+        })();
     }
 });
 
-sendNextPost();
+sendNextPost()
+    .then(() => {
+        setInterval(() => {
+            const promise = sendNextPost();
+        }, POST_DELAY * 60 * 1000);
+    });
 
-setInterval(() => {
-    sendNextPost();
-}, delay_min * 60 * 1000);
+
