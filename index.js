@@ -1,7 +1,7 @@
 
-const icon_poll_up = '❤';
-const icon_poll_down = '✖';
-const icon_globe = '🌍';
+const icon_poll_up = '👍';
+const icon_poll_down = '👎';
+const icon_globe = '🔗';
 const last_id_file = 'last_id';
 const chat_id = '@tyampuru';
 const api_path = 'https://tyampuru.ru/api/post/';
@@ -71,10 +71,10 @@ const doPoll = async (data, msg, from) => {
 
     const hasUserVote = await keyv.get(userVoteKey);
     if (!hasUserVote) {
-        if (data.vote === ACTION_POLL_UP) {
-            postVoteData.voteUp++;
-        } else {
+        if (data.vote === ACTION_POLL_DOWN) {
             postVoteData.voteDown++;
+        } else {
+            postVoteData.voteUp++;
         }
         await keyv.set(userVoteKey, true, keyv_ttl);
     }
