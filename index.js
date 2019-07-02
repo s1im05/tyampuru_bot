@@ -1,14 +1,15 @@
 
 const icon_poll_up = '👍';
 const icon_poll_down = '👎';
-const icon_globe = '🔗';
+const icon_link = '🔗';
 const last_id_file = 'last_id';
 const chat_id = '@tyampuru';
 const api_path = 'https://tyampuru.ru/api/post/';
 const link_path = 'https://tyampuru.ru/post/';
 
 const TOKEN = process.env.TELEGRAM_TOKEN || '';
-const POST_DELAY = process.env.POST_DELAY || 60;
+const POST_DELAY = process.env.POST_DELAY || 60; // min
+const KEY_VALUE_TTL = process.env.KEY_VALUE_TTL || 3 * 60; // min
 
 const ACTION_POLL = 'poll';
 const ACTION_POLL_UP = 'poll_up';
@@ -19,7 +20,7 @@ const Keyv = require('keyv');
 const request = require('request');
 const fs = require('fs');
 
-const keyv_ttl = 60 * 60 * 1000; // 1 hour
+const keyv_ttl = KEY_VALUE_TTL * 60 * 1000; // KEY_VALUE_TTL in min
 const options = {
     polling: true
 };
@@ -103,9 +104,8 @@ const sendNextPost = () => {
             reply_markup: {
                 inline_keyboard: [[
                     {text: `${icon_poll_up} 0`, callback_data: JSON.stringify({'action': ACTION_POLL, 'vote': ACTION_POLL_UP, 'postId': data.id})},
-                    {text: `${icon_poll_down} 0`, callback_data: JSON.stringify({'action': ACTION_POLL, 'vote': ACTION_POLL_DOWN, 'postId': data.id})}
-                ], [
-                    {text: `${icon_globe} ссылка`, url: `${link_path}${data.id}`}
+                    {text: `${icon_poll_down} 0`, callback_data: JSON.stringify({'action': ACTION_POLL, 'vote': ACTION_POLL_DOWN, 'postId': data.id})},
+                    {text: `${icon_link} link`, url: `${link_path}${data.id}`}
                 ]]
             },
             caption: caption
