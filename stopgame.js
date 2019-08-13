@@ -95,9 +95,7 @@ const sendNextPost = async () => {
             if (isYoutube) {
                 await bot.sendMessage(chat_id, itemToPost.link, options);
             } else {
-				options = {
-					caption: `${itemToPost.title}\n\n${itemToPost.link}`
-				};
+				options.caption = `${itemToPost.title}\n\n${itemToPost.link}`;
                 await bot.sendPhoto(chat_id, itemToPost.image, options);
             }
 
