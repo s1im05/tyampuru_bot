@@ -89,13 +89,15 @@ const sendNextPost = async () => {
                         {text: `${icon_poll_up} 0`, callback_data: JSON.stringify({'action': ACTION_POLL, 'vote': ACTION_POLL_UP, 'postId': postId})},
                         {text: `${icon_poll_down} 0`, callback_data: JSON.stringify({'action': ACTION_POLL, 'vote': ACTION_POLL_DOWN, 'postId': postId})},
                     ]]
-                },
-                caption: `${itemToPost.title}\n\n${itemToPost.link}`
+                }
             };
 
             if (isYoutube) {
                 await bot.sendMessage(chat_id, itemToPost.link, options);
             } else {
+				options = {
+					caption: `${itemToPost.title}\n\n${itemToPost.link}`
+				};
                 await bot.sendPhoto(chat_id, itemToPost.image, options);
             }
 
