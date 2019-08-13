@@ -51,23 +51,39 @@ const doPoll = async (data, msg, from) => {
     return postVoteData;
 };
 
-const sendNextPost = async () => {
+let isYoutube = false;
 
+const getPostData = async () => {
     let itemToPost = null;
-    const feed = await parser.parseURL('https://rss.stopgame.ru/rss_news.xml');
     const postedIds = await keyv.get('postedIds') || [];
+    const feedURL = isYoutube ? 'https://www.youtube.com/feeds/videos.xml?channel_id=UCq7JZ8ATgQWeu6sDM1czjhg' : 'https://rss.stopgame.ru/rss_news.xml';
+
+    const feed = await parser.parseURL(feedURL);
 
     feed.items.forEach((item) => {
-        const id = +item.guid.match(/\d+$/gm);
+        const id = item.guid || item.id;
         if (!postedIds.includes(id)) {
-            itemToPost = item;
+            itemToPost = {
+                id: id,
+                title: item.title,
+                link: item.link,
+                image: isYoutube ? null : item.enclosure.url
+            };
         }
     });
 
+    return itemToPost;
+};
+
+const sendNextPost = async () => {
+
+    const itemToPost = await getPostData();
+    const postId = itemToPost.id;
+
     try {
-        if (itemToPost) {
-            const postId = itemToPost.id;
-            await bot.sendPhoto(chat_id, itemToPost.enclosure.url, {
+        if (postId && itemToPost) {
+
+            const options = {
                 reply_markup: {
                     inline_keyboard: [[
                         {text: `${icon_poll_up} 0`, callback_data: JSON.stringify({'action': ACTION_POLL, 'vote': ACTION_POLL_UP, 'postId': postId})},
@@ -75,12 +91,23 @@ const sendNextPost = async () => {
                     ]]
                 },
                 caption: `${itemToPost.title}\n\n${itemToPost.link}`
-            });
-            postedIds.push(postId);
-            await keyv.set('postedIds', postedIds, keyv_ttl);
+            };
+
+            if (isYoutube) {
+                await bot.sendMessage(chat_id, itemToPost.link, options);
+            } else {
+                await bot.sendPhoto(chat_id, itemToPost.image, options);
+            }
+
         }
     } catch (e) {
         console.error(e);
+    } finally {
+        const postedIds = await keyv.get('postedIds') || [];
+        postedIds.push(postId);
+        await keyv.set('postedIds', postedIds, keyv_ttl);
+
+        isYoutube = !isYoutube;
     }
 };
 
@@ -112,15 +139,11 @@ bot.on('callback_query', function onCallbackQuery(callbackQuery) {
     }
 });
 
-bot.onText(/\/post/, () => {
+bot.onText(/\/stopgame/, () => {
     sendNextPost();
 });
 
-
-sendNextPost()
-    .then(() => {
-        setInterval(() => {
-            const promise = sendNextPost();
-        }, POST_DELAY * 60 * 1000);
-    });
+setInterval(() => {
+    const promise = sendNextPost();
+}, POST_DELAY * 60 * 1000);
 
