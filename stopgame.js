@@ -61,10 +61,12 @@ const getPostData = async () => {
     const feed = await parser.parseURL(feedURL);
 
     feed.items.forEach((item) => {
-        const id = item.guid || item.id;
-        if (!postedIds.includes(id)) {
+
+        const postId = isYoutube ? item.id : 'site_' + item.guid.match(/\d+$/gm);
+
+        if (!postedIds.includes(postId)) {
             itemToPost = {
-                id: id,
+                id: postId,
                 title: item.title,
                 link: item.link,
                 image: isYoutube ? null : item.enclosure.url
@@ -82,23 +84,22 @@ const sendNextPost = async () => {
 
     try {
         if (postId && itemToPost) {
-
-            const options = {
-                reply_markup: {
-                    inline_keyboard: [[
-                        {text: `${icon_poll_up} 0`, callback_data: JSON.stringify({'action': ACTION_POLL, 'vote': ACTION_POLL_UP, 'postId': postId})},
-                        {text: `${icon_poll_down} 0`, callback_data: JSON.stringify({'action': ACTION_POLL, 'vote': ACTION_POLL_DOWN, 'postId': postId})},
-                    ]]
-                }
-            };
-
+						
             if (isYoutube) {
-                await bot.sendMessage(chat_id, itemToPost.link, options);
+                await bot.sendMessage(chat_id, itemToPost.link);
             } else {
-				options.caption = `${itemToPost.title}\n\n${itemToPost.link}`;
+				const options = {
+					reply_markup: {
+						inline_keyboard: [[
+							{text: `${icon_poll_up} 0`, callback_data: JSON.stringify({'action': ACTION_POLL, 'vote': ACTION_POLL_UP, 'postId': postId})},
+							{text: `${icon_poll_down} 0`, callback_data: JSON.stringify({'action': ACTION_POLL, 'vote': ACTION_POLL_DOWN, 'postId': postId})},
+						]]
+					},
+					caption: `${itemToPost.title}\n\n${itemToPost.link}`
+				};
                 await bot.sendPhoto(chat_id, itemToPost.image, options);
             }
-
+			isYoutube = !isYoutube;
         }
     } catch (e) {
         console.error(e);
@@ -106,8 +107,6 @@ const sendNextPost = async () => {
         const postedIds = await keyv.get('postedIds') || [];
         postedIds.push(postId);
         await keyv.set('postedIds', postedIds, keyv_ttl);
-
-        isYoutube = !isYoutube;
     }
 };
 
