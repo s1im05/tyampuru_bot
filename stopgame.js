@@ -81,7 +81,7 @@ const getPostData = async () => {
 const sendNextPost = async () => {
 
     const itemToPost = await getPostData();
-    const postId = itemToPost.id;
+    const postId = itemToPost ? itemToPost.id : null;
 
     try {
         if (postId && itemToPost) {
