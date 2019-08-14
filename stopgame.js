@@ -85,7 +85,6 @@ const sendNextPost = async () => {
 
     try {
         if (postId && itemToPost) {
-						
             if (isYoutube) {
                 await bot.sendMessage(chat_id, itemToPost.link);
             } else {
@@ -100,8 +99,8 @@ const sendNextPost = async () => {
 				};
                 await bot.sendPhoto(chat_id, itemToPost.image, options);
             }
-			isYoutube = !isYoutube;
         }
+        isYoutube = !isYoutube;
     } catch (e) {
         console.error(e);
     } finally {
