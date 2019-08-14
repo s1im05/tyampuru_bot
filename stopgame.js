@@ -60,19 +60,20 @@ const getPostData = async () => {
 
     const feed = await parser.parseURL(feedURL);
 
-    feed.items.forEach((item) => {
+    feed.items
+        .filter(item => item.isoDate.substr(0, 10) === new Date().toISOString().substr(0, 10))
+        .forEach((item) => {
+            const postId = isYoutube ? item.id : 'site_' + item.guid.match(/\d+$/gm);
 
-        const postId = isYoutube ? item.id : 'site_' + item.guid.match(/\d+$/gm);
-
-        if (!postedIds.includes(postId)) {
-            itemToPost = {
-                id: postId,
-                title: item.title,
-                link: item.link,
-                image: isYoutube ? null : item.enclosure.url
-            };
-        }
-    });
+            if (!postedIds.includes(postId)) {
+                itemToPost = {
+                    id: postId,
+                    title: item.title,
+                    link: item.link,
+                    image: isYoutube ? null : item.enclosure.url
+                };
+            }
+        });
 
     return itemToPost;
 };
