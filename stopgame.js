@@ -56,7 +56,7 @@ let isYoutube = false;
 const getPostData = async () => {
     let itemToPost = null;
     const postedIds = await keyv.get('postedIds') || [];
-    const feedURL = isYoutube ? 'https://www.youtube.com/feeds/videos.xml?channel_id=UCq7JZ8ATgQWeu6sDM1czjhg' : 'https://rss.stopgame.ru/rss_news.xml';
+    const feedURL = isYoutube ? 'https://www.youtube.com/feeds/videos.xml?channel_id=UCq7JZ8ATgQWeu6sDM1czjhg' : 'https://rss.stopgame.ru/rss_all.xml';
 
     const feed = await parser.parseURL(feedURL);
 
