@@ -3,7 +3,7 @@ const Keyv = require('keyv');
 const keyv_ttl = KEY_VALUE_TTL * 24 * 60 * 60 * 1000; // KEY_VALUE_TTL in days
 const keyv = new Keyv();
 
-const TOKEN = process.env.TELEGRAM_TOKEN || '876863788:AAGBIBfX_B8jAoMXzLiuKlrsH3xTsEOezuA';
+const TOKEN = process.env.TELEGRAM_TOKEN;
 const disk = require('diskusage');
 
 const TelegramBot = require('node-telegram-bot-api');
