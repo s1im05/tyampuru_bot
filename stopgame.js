@@ -51,24 +51,26 @@ const doPoll = async (data, msg, from) => {
     return postVoteData;
 };
 
+let isYoutube = false;
+
 const getPostData = async () => {
     let itemToPost = null;
     const postedIds = await keyv.get('postedIds') || [];
-    const feedURL = 'https://rss.stopgame.ru/rss_all.xml';
+    const feedURL = isYoutube ? 'https://www.youtube.com/feeds/videos.xml?channel_id=UCq7JZ8ATgQWeu6sDM1czjhg' : 'https://rss.stopgame.ru/rss_news.xml';
 
     const feed = await parser.parseURL(feedURL);
 
     feed.items
         .filter(item => item.isoDate.substr(0, 10) === new Date().toISOString().substr(0, 10))
         .forEach((item) => {
-            const postId = 'site_' + item.guid.match(/\d+$/gm);
+            const postId = isYoutube ? item.id : 'site_' + item.guid.match(/\d+$/gm);
 
             if (!postedIds.includes(postId)) {
                 itemToPost = {
                     id: postId,
                     title: item.title,
                     link: item.link,
-                    image: item.enclosure.url
+                    image: isYoutube ? null : item.enclosure.url
                 };
             }
         });
@@ -83,18 +85,22 @@ const sendNextPost = async () => {
 
     try {
         if (postId && itemToPost) {
-            const options = {
-                reply_markup: {
-                    inline_keyboard: [[
-                        {text: `${icon_poll_up} 0`, callback_data: JSON.stringify({'action': ACTION_POLL, 'vote': ACTION_POLL_UP, 'postId': postId})},
-                        {text: `${icon_poll_down} 0`, callback_data: JSON.stringify({'action': ACTION_POLL, 'vote': ACTION_POLL_DOWN, 'postId': postId})},
-                    ]]
-                },
-                caption: `${itemToPost.title}\n\n${itemToPost.link}`
-            };
-            await bot.sendPhoto(chat_id, itemToPost.image, options);
+            if (isYoutube) {
+                await bot.sendMessage(chat_id, itemToPost.link);
+            } else {
+                const options = {
+                    reply_markup: {
+                        inline_keyboard: [[
+                            {text: `${icon_poll_up} 0`, callback_data: JSON.stringify({'action': ACTION_POLL, 'vote': ACTION_POLL_UP, 'postId': postId})},
+                            {text: `${icon_poll_down} 0`, callback_data: JSON.stringify({'action': ACTION_POLL, 'vote': ACTION_POLL_DOWN, 'postId': postId})},
+                        ]]
+                    },
+                    caption: `${itemToPost.title}\n\n${itemToPost.link}`
+                };
+                await bot.sendPhoto(chat_id, itemToPost.image, options);
+            }
         }
-
+        isYoutube = !isYoutube;
     } catch (e) {
         console.error(e);
     } finally {
@@ -139,4 +145,3 @@ bot.onText(/\/stopgame/, () => {
 setInterval(() => {
     const promise = sendNextPost();
 }, POST_DELAY * 60 * 1000);
-
