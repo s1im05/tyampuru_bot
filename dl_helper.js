@@ -1,5 +1,8 @@
 const request = require('request');
 
+const fs = require('fs');
+const home_dir = process.env.HOME_DIR;
+
 const KEY_VALUE_TTL = process.env.KEY_VALUE_TTL || 30; // days
 const Keyv = require('keyv');
 const keyv_ttl = KEY_VALUE_TTL * 24 * 60 * 60 * 1000; // KEY_VALUE_TTL in days
@@ -67,16 +70,20 @@ const sleep = (msg) => {
 
 const getMagnet = (link) => {
     return new Promise((resolve, reject) => {
-        request(link, {}, (err, res) => {
-            if (err) {
-                reject(err);
-            } else {
-                const body = res.body;
-                const magnet = new RegExp('href=\"(magnet\:[^"]+)\"', "gi").exec(body);
+        if (new RegExp('^magnet:','gi').test(link)) {
+            resolve(link);
+        } else {
+            request(link, {}, (err, res) => {
+                if (err) {
+                    reject(err);
+                } else {
+                    const body = res.body;
+                    const magnet = new RegExp('href=\"(magnet\:[^"]+)\"', "gi").exec(body);
 
-                resolve(magnet && magnet[1] ? magnet[1] : null);
-            }
-        });
+                    resolve(magnet && magnet[1] ? magnet[1] : null);
+                }
+            });
+        }
     });
 };
 
@@ -96,7 +103,7 @@ bot.onText(new RegExp(btn_download), (msg) => {
     });
 });
 
-bot.onText(/^(https:\/\/rutracker.org|https:\/\/rutracker.net)/, (msg) => {
+bot.onText(/^(https:\/\/rutracker.org|https:\/\/rutracker.net|magnet:)/, (msg) => {
     callbackOnText(msg, (msg) => {
         clearTimeout(dlTimeout);
 
@@ -115,9 +122,11 @@ bot.onText(/^(https:\/\/rutracker.org|https:\/\/rutracker.net)/, (msg) => {
             (async () => {
                 try {
                     const magnet = await getMagnet(msg.text);
-                    const res = await transmission.addUrl(magnet);
-                    const keyv_id = `torrent_ids_${msg.from.id}`;
+                    const res = await transmission.addUrl(magnet, {
+                        'download-dir': `${home_dir}/rsync/${msg.from.username}`
+                    });
 
+                    const keyv_id = `torrent_ids_${msg.from.id}`;
                     const ids = await keyv.get(keyv_id) || [];
 
                     if (!ids.includes(res.id)) {
@@ -178,12 +187,6 @@ bot.onText(new RegExp(btn_list), (msg) => {
                                 ]
                             }
                         };
-                        if (torrent.haveValid && torrent.haveValid === torrent.sizeWhenDone) {
-                            opts.reply_markup.inline_keyboard[0] = [
-                                {text: btn_download, callback_data: [ACTION.DOWNLOAD, torrent.id].join('_')},
-                                ...opts.reply_markup.inline_keyboard[0]
-                            ];
-                        }
 
                         const index = res.torrents.length - i;
                         const progress = Math.round((torrent.haveValid / torrent.sizeWhenDone).toFixed(3) * 100);
@@ -214,7 +217,6 @@ bot.onText(new RegExp(btn_cancel), (msg) => {
 });
 
 // delete / download callback
-
 bot.on('callback_query', async (callbackQuery) => {
     const action = callbackQuery.data.split('_')[0];
     const torrent_id = +callbackQuery.data.split('_')[1];
@@ -231,21 +233,4 @@ bot.on('callback_query', async (callbackQuery) => {
         case ACTION.DOWNLOAD:
             break;
     }
-
-    console.log(action, torrent_id);
-    /*
-    const action = callbackQuery.data;
-    const msg = callbackQuery.message;
-    const opts = {
-        chat_id: msg.chat.id,
-        message_id: msg.message_id,
-    };
-    let text;
-
-    if (action === 'edit') {
-        text = 'Edited Text';
-    }
-
-    bot.editMessageText(text, opts);
-    */
 });
