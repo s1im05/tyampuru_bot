@@ -1,5 +1,4 @@
 const request = require('request');
-const windows1251 = require('windows-1251');
 
 const KEY_VALUE_TTL = process.env.KEY_VALUE_TTL || 30; // days
 const Keyv = require('keyv');
@@ -10,26 +9,32 @@ const Transmission = require('transmission-promise');
 const transmission = new Transmission({
     host: process.env.RPC_HOST, // default 'localhost'
     port: process.env.RPC_PORT, // default 9091
-    username:  process.env.RPC_USER_LOGIN, // default blank
+    username: process.env.RPC_USER_LOGIN, // default blank
     password: process.env.RPC_USER_PASSWORD, // default blank
 });
 
 const TOKEN = process.env.TELEGRAM_TOKEN;
 
 const TelegramBot = require('node-telegram-bot-api');
-const bot = new TelegramBot(TOKEN, { polling: true });
-const bot_timeout =  60 * 1000; // min
+const bot = new TelegramBot(TOKEN, {polling: true});
+const bot_timeout = 60 * 1000; // min
 
 const user_allowed = ['vsul_ru', 'Amasing_Paprika'];
-const btn_dl = '🌍 скачать',
+const btn_download = '🌍 скачать',
     btn_cancel = '🚫 отмена',
+    btn_delete = '🚫 удалить',
     btn_list = '📋 список',
     btn_free_space = '📊 место на диске';
+
+const ACTION = {
+    DELETE: 'delete',
+    DOWNLOAD: 'download',
+};
 
 const commonOpts = {
     reply_markup: JSON.stringify({
         keyboard: [
-            [btn_dl, btn_list],
+            [btn_download, btn_list],
             [btn_free_space, btn_cancel]
         ]
     })
@@ -68,12 +73,8 @@ const getMagnet = (link) => {
             } else {
                 const body = res.body;
                 const magnet = new RegExp('href=\"(magnet\:[^"]+)\"', "gi").exec(body);
-                const title = new RegExp('<a\s? id="topic-title".+>(.+)<\/a>', "gi").exec(body);
 
-                resolve({
-                    magnet: magnet && magnet[1] ? magnet[1] : null,
-                    title: title && title[1] ? windows1251.decode(title[1]) : null,
-                });
+                resolve(magnet && magnet[1] ? magnet[1] : null);
             }
         });
     });
@@ -86,10 +87,10 @@ bot.onText(/\/start/, (msg) => {
     });
 });
 
-bot.onText(new RegExp(btn_dl), (msg) => {
+bot.onText(new RegExp(btn_download), (msg) => {
     callbackOnText(msg, (msg) => {
         readyForDownload = true;
-        bot.sendMessage(msg.chat.id, '😎 отлично, пришлите мне ссылку');
+        bot.sendMessage(msg.chat.id, '😎 готов скачивать, пришлите мне ссылку');
 
         sleep(msg);
     });
@@ -103,7 +104,7 @@ bot.onText(/^(https:\/\/rutracker.org|https:\/\/rutracker.net)/, (msg) => {
             reply_to_message_id: msg.message_id,
             reply_markup: JSON.stringify({
                 keyboard: [
-                    [btn_dl, btn_list],
+                    [btn_download, btn_list],
                     [btn_free_space, btn_cancel]
                 ]
             })
@@ -113,10 +114,20 @@ bot.onText(/^(https:\/\/rutracker.org|https:\/\/rutracker.net)/, (msg) => {
             bot.sendMessage(msg.chat.id, '✋ подождите, сейчас поставлю в очередь на скачивание');
             (async () => {
                 try {
-                    const dlRes = await getMagnet(msg.text);
-                    const res = await transmission.addUrl(dlRes.magnet);
-                    console.log(res);
-                    bot.sendMessage(msg.chat.id, `👍 поставил на закачку ${dlRes.title}. еще что-нибудь?`, opts);
+                    const magnet = await getMagnet(msg.text);
+                    const res = await transmission.addUrl(magnet);
+                    const keyv_id = `torrent_ids_${msg.from.id}`;
+
+                    const ids = await keyv.get(keyv_id) || [];
+
+                    if (!ids.includes(res.id)) {
+                        await keyv.set(keyv_id, [...ids, res.id], keyv_ttl);
+
+                        bot.sendMessage(msg.chat.id, `👍 поставил на закачку. еще что-нибудь?`, opts);
+                    } else {
+                        bot.sendMessage(msg.chat.id, `😩 этот торрент уже скачивается`, opts);
+                    }
+
                 } catch (e) {
                     bot.sendMessage(msg.chat.id, '😥 не смог найти magnet-ссылку по вашему адресу', opts);
                 }
@@ -131,15 +142,67 @@ bot.onText(/^(https:\/\/rutracker.org|https:\/\/rutracker.net)/, (msg) => {
 
 bot.onText(new RegExp(btn_free_space), (msg) => {
 
-    callbackOnText(msg, (msg) => {
-        transmission.freeSpace('/')
-            .then(res => {
-                const size = (res['size-bytes'] / (1024 * 1024 * 1024)).toFixed(2);
-                bot.sendMessage(msg.chat.id, `📊 свободное место: ${size} Gb`);
-            }).catch(err => {
+    callbackOnText(msg, async (msg) => {
+        try {
+            const res = await transmission.freeSpace('/');
+            const size = (res['size-bytes'] / (1024 * 1024 * 1024)).toFixed(2);
+            await bot.sendMessage(msg.chat.id, `📊 свободное место: ${size} Gb`);
+        } catch (e) {
+            console.error(err);
+            await bot.sendMessage(msg.chat.id, `😭 не могу посчитать свободное место`);
+        }
+    });
+});
+
+bot.onText(new RegExp(btn_list), (msg) => {
+
+    callbackOnText(msg, async (msg) => {
+
+        const keyv_id = `torrent_ids_${msg.from.id}`;
+        const ids = await keyv.get(keyv_id) || [];
+
+        if (ids.length) {
+            try {
+                const res = await transmission.get(ids);
+                const update_ids = [];
+
+                if (res.torrents && res.torrents.length) {
+                    for (let i = res.torrents.length; i--;) {
+                        const torrent = res.torrents[i];
+                        const opts = {
+                            reply_markup: {
+                                inline_keyboard: [
+                                    [
+                                        {text: btn_delete, callback_data: [ACTION.DELETE, torrent.id].join('_')},
+                                    ]
+                                ]
+                            }
+                        };
+                        if (torrent.haveValid && torrent.haveValid === torrent.sizeWhenDone) {
+                            opts.reply_markup.inline_keyboard[0] = [
+                                {text: btn_download, callback_data: [ACTION.DOWNLOAD, torrent.id].join('_')},
+                                ...opts.reply_markup.inline_keyboard[0]
+                            ];
+                        }
+
+                        const index = res.torrents.length - i;
+                        const progress = Math.round((torrent.haveValid / torrent.sizeWhenDone).toFixed(3) * 100);
+                        await bot.sendMessage(msg.chat.id, `${index}. ${torrent.name}\nскачано: ${progress ? progress : 0}%`, opts);
+
+                        update_ids.push(torrent.id);
+                    }
+                } else {
+                    await bot.sendMessage(msg.chat.id, `😩 ваш список закачек пока пустой`);
+                }
+
+                await keyv.set(keyv_id, update_ids, keyv_ttl);
+            } catch (err) {
                 console.error(err);
-                bot.sendMessage(msg.chat.id, `😭 не могу посчитать свободное место`);
-            });
+                await bot.sendMessage(msg.chat.id, `😭 ошибка во время получения списка заказчек, попробуйте позже`);
+            }
+        } else {
+            await bot.sendMessage(msg.chat.id, `😩 ваш список закачек пока пустой`);
+        }
     });
 });
 
@@ -148,4 +211,41 @@ bot.onText(new RegExp(btn_cancel), (msg) => {
         reset();
         bot.sendMessage(msg.chat.id, '😴 если что, разбудите меня позже...');
     });
+});
+
+// delete / download callback
+
+bot.on('callback_query', async (callbackQuery) => {
+    const action = callbackQuery.data.split('_')[0];
+    const torrent_id = +callbackQuery.data.split('_')[1];
+    const msg = callbackQuery.message;
+    const keyv_id = `torrent_ids_${msg.from.id}`;
+    const ids = await keyv.get(keyv_id) || [];
+
+    switch (action) {
+        case ACTION.DELETE:
+            await transmission.remove(torrent_id, true);
+            await keyv.set(keyv_id, ids.filter(val => val !== torrent_id), keyv_ttl);
+            await bot.deleteMessage(msg.chat.id, msg.message_id);
+            break;
+        case ACTION.DOWNLOAD:
+            break;
+    }
+
+    console.log(action, torrent_id);
+    /*
+    const action = callbackQuery.data;
+    const msg = callbackQuery.message;
+    const opts = {
+        chat_id: msg.chat.id,
+        message_id: msg.message_id,
+    };
+    let text;
+
+    if (action === 'edit') {
+        text = 'Edited Text';
+    }
+
+    bot.editMessageText(text, opts);
+    */
 });
