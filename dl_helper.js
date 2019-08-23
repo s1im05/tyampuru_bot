@@ -87,6 +87,13 @@ const getMagnet = (link) => {
     });
 };
 
+const bytesToSize = (bytes) => {
+    var sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    if (bytes === 0) return '0 Byte';
+    var i = parseInt(Math.floor(Math.log(bytes) / Math.log(1024)));
+    return Math.round(bytes / Math.pow(1024, i), 2) + ' ' + sizes[i];
+};
+
 // event handlers
 bot.onText(/\/start/, (msg) => {
     callbackOnText(msg, (msg) => {
@@ -190,7 +197,8 @@ bot.onText(new RegExp(btn_list), (msg) => {
 
                         const index = res.torrents.length - i;
                         const progress = Math.round((torrent.haveValid / torrent.sizeWhenDone).toFixed(3) * 100);
-                        await bot.sendMessage(msg.chat.id, `${index}. ${torrent.name}\nскачано: ${progress ? progress : 0}%`, opts);
+                        const size = bytesToSize(torrent.sizeWhenDone);
+                        await bot.sendMessage(msg.chat.id, `${index}. ${torrent.name} (${size})\nскачано: ${progress ? progress : 0}%`, opts);
 
                         update_ids.push(torrent.id);
                     }
