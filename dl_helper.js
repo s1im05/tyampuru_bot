@@ -110,7 +110,7 @@ bot.onText(new RegExp(btn_download), (msg) => {
     });
 });
 
-bot.onText(/^(https:\/\/rutracker.org|https:\/\/rutracker.net|magnet:)/, (msg) => {
+bot.onText(/^(https:\/\/rutracker.org|https:\/\/rutracker.net|https:\/\/booktracker.org|magnet:)/, (msg) => {
     callbackOnText(msg, (msg) => {
         clearTimeout(dlTimeout);
 
